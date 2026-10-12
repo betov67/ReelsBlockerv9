@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ReelsBlocker</string>
+    <string name="app_tagline">Stories, DMs and Profile Reels stay open. The feed and Explore Reels don\'t.</string>
+
+    <string name="accessibility_service_label">ReelsBlocker</string>
+    <string name="accessibility_service_description">Watches Instagram\'s on-screen layout only to tell Stories, DM Reels and Profile Reels apart from the main Reels/Explore feed, and closes the Reels player when it was opened from the main feed or Explore. It does not read message content, photos, or anything outside Instagram.</string>
+
+    <string name="notification_channel_name">ReelsBlocker status</string>
+    <string name="notification_channel_description">Ongoing notification that keeps the Reels blocker running reliably in the background.</string>
+    <string name="notification_title">ReelsBlocker is active</string>
+    <string name="notification_text">Blocking feed &amp; Explore Reels. Stories, DMs and Profile Reels are unaffected.</string>
+
+    <string name="status_protected">✅ Protection is ON\nFeed &amp; Explore Reels are blocked.</string>
+    <string name="status_unprotected">⚠️ Protection is OFF\nTurn on the ReelsBlocker accessibility service below.</string>
+
+    <string name="open_accessibility_settings">Open Accessibility Settings</string>
+    <string name="ignore_battery_optimizations">Exempt From Battery Optimization</string>
+    <string name="could_not_open_settings">Couldn\'t open that settings screen on this device.</string>
+    <string name="battery_already_exempt">Already exempt from battery optimization.</string>
+
+    <string name="explainer_title">How it works</string>
+    <string name="explainer_body">ReelsBlocker only watches the Instagram app\'s screen layout through Android\'s Accessibility API — it never reads your messages, photos, or anything outside Instagram.\n\n• Stories always play normally.\n• Reels sent in a DM, or opened from someone\'s profile grid, play normally too.\n• Opening the main Reels tab, or a Reel from the main feed or Explore, immediately backs out.</string>
+</resources>

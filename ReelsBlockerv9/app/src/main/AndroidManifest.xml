@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Lets MonitorForegroundService run with an ongoing notification so the
+         OS treats the ReelsBlocker process as high priority and is far less
+         likely to kill it in the background. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- Lets the watchdog bring the monitor service back up after a reboot
+         or an app update. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Required on API 33+ to actually show the ongoing "service active"
+         notification; requested at runtime from MainActivity. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Lets the user exempt ReelsBlocker from aggressive OEM battery
+         optimizers (MIUI, OneUI, ColorOS, etc.), which are the single
+         biggest real-world cause of accessibility services being killed. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:name=".ReelsBlockerApplication"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.ReelsBlocker"
+        android:supportsRtl="true">
+
+        <!-- Status / setup screen: shows whether the accessibility service is
+             currently enabled and deep-links into system Accessibility
+             settings so the user can turn it on. -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.ReelsBlocker">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The core blocker. Everything described in the project spec lives
+             here: story bypass, DM/profile bypass window, feed/explore
+             Reels blocking. -->
+        <service
+            android:name=".service.ReelsBlockerAccessibilityService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:label="@string/accessibility_service_label">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- Lightweight always-on foreground service. Its only job is to hold
+             an ongoing notification so Android keeps our process warm; the
+             accessibility system service is what actually does the
+             blocking. -->
+        <service
+            android:name=".service.MonitorForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the Reels-blocking accessibility service alive and visibly running." />
+        </service>
+
+        <!-- Restarts the monitor service (and re-arms the watchdog alarm)
+             after a reboot or an app update. Not exported: BOOT_COMPLETED and
+             MY_PACKAGE_REPLACED are protected system broadcasts, so the
+             platform can still deliver them here even though third-party
+             apps cannot. -->
+        <receiver
+            android:name=".receiver.BootCompletedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Fired periodically by AlarmManager. Pokes the monitor service
+             back to life if it was ever swept away and reschedules itself. -->
+        <receiver
+            android:name=".receiver.WatchdogReceiver"
+            android:exported="false" />
+
+    </application>
+
+</manifest>
