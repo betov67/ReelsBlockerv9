@@ -14,17 +14,23 @@ jobs:
           
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
-        
+        with:
+          gradle-version: '8.7'
+          
       - name: Build APK
         run: |
           BUILD_FILE=$(find . -name "build.gradle*" -type f | head -n 1)
           PROJECT_DIR=$(dirname "$BUILD_FILE")
           cd "$PROJECT_DIR"
-          chmod +x gradlew || true
-          ./gradlew assembleDebug || gradle assembleDebug
+          if [ -f "./gradlew" ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug
+          else
+            gradle assembleDebug
+          fi
         
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ReelsBlocker-v9-APK
-          path: '**/app/build/outputs/apk/debug/*.apk'
+          path: '**/build/outputs/apk/debug/*.apk'
