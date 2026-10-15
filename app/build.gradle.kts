@@ -20,8 +20,8 @@ android {
         applicationId = "com.reelsblocker.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "9.0"
+        versionCode = 10
+        versionName = "10.0"
     }
 
     buildTypes {

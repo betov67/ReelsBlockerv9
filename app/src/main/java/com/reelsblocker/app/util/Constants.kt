@@ -21,18 +21,11 @@ object Constants {
     const val INSTAGRAM_PACKAGE = "com.instagram.android"
 
     /**
-     * How long a tap inside a DM thread or a Profile grid keeps the
-     * "allow the next Reel player that opens" window armed, in
-     * milliseconds. Required by spec: 3 seconds.
-     */
-    const val BYPASS_WINDOW_MS = 3_000L
-
-    /**
-     * Minimum gap between two consecutive GLOBAL_ACTION_BACK calls. The
-     * Clips player fires several TYPE_WINDOW_CONTENT_CHANGED events per
-     * second while a video is playing, so without this debounce we would
-     * re-press back on every single one of them while the previous back
-     * navigation is still animating.
+     * Minimum gap between two consecutive GLOBAL_ACTION_BACK calls. A single
+     * swipe gesture against the Clips pager fires several TYPE_VIEW_SCROLLED
+     * events in a row as the drag progresses (not just one at the end), so
+     * without this debounce we would re-press back on every single one of
+     * them while the previous back navigation is still animating.
      */
     const val BACK_ACTION_DEBOUNCE_MS = 800L
 
@@ -46,20 +39,6 @@ object Constants {
         "reel_viewer",
         "story_feed_holder",
         "ReelViewerFragment"
-    )
-
-    /** A Reel opened from inside a Direct Message thread. */
-    val DM_IDENTIFIERS = arrayOf(
-        "direct_thread",
-        "com.instagram.direct",
-        "message_content"
-    )
-
-    /** A Reel opened from a user's Profile grid. */
-    val PROFILE_IDENTIFIERS = arrayOf(
-        "profile_tab",
-        "user_profile",
-        "profile_header"
     )
 
     /**

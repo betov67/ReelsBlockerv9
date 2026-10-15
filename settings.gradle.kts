@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ReelsBlockerV9"
+rootProject.name = "ReelsBlockerV10"
 include(":app")
