@@ -6,28 +6,44 @@ import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
-import com.reelsblocker.app.model.BypassSource
 import com.reelsblocker.app.util.Constants
 import com.reelsblocker.app.util.NodeUtils
 
 /**
- * ReelsBlocker v9 — core accessibility logic.
+ * ReelsBlocker v11 — "single-video" policy, grace-period state machine.
  *
- * On every relevant event this walks the active window's node tree, in
- * strict priority order:
+ * v9/v10 drove screen classification off both `TYPE_WINDOW_STATE_CHANGED`
+ * *and* `TYPE_WINDOW_CONTENT_CHANGED`. That was the actual defect: Instagram
+ * fires `TYPE_WINDOW_CONTENT_CHANGED` constantly while a Reel is simply
+ * playing — caption text updating, like-count animating, progress bar
+ * ticking — and some of those updates were getting (mis)read as "the user
+ * left the Clips player," resetting the allow/block state far more often
+ * than intended.
  *
- * 1. **Story bypass (highest priority, never overridden).** If the active
- *    screen is a Story viewer, do nothing at all — not even
- *    [performGlobalAction], just a log line — and return immediately.
- * 2. **Arm the DM/Profile bypass window.** A click inside a DM thread or a
- *    Profile grid starts a 3-second window during which the *next* Reel
- *    player that opens is treated as deliberately, legitimately opened.
- * 3. **Classify the Reels/Clips player.** If it's on screen and a bypass
- *    window is currently armed, the viewing session is marked allowed for
- *    as long as the player stays open (so it is never yanked shut mid-video
- *    just because the 3-second arming window has since elapsed). Otherwise
- *    [android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK]
- *    is pressed immediately to close it.
+ * v11 fixes this at the root: screen classification now reacts ONLY to
+ * `TYPE_WINDOW_STATE_CHANGED`, which Android fires on genuine screen/window
+ * transitions, not on every minor content tick. `TYPE_WINDOW_CONTENT_CHANGED`
+ * is no longer requested at all (see `res/xml/accessibility_service_config.xml`).
+ *
+ * The state machine:
+ *
+ * 1. **Enter the Clips player** (`TYPE_WINDOW_STATE_CHANGED` detects
+ *    `ClipsViewerFragment` / `clips_viewer`): set `isInReelsPlayer = true`
+ *    and stamp `reelOpenTimeMs = now`. Nothing else — the first video plays
+ *    completely uninterrupted.
+ * 2. **Any `TYPE_VIEW_SCROLLED` while `isInReelsPlayer` is true:**
+ *    - If less than [Constants.SCROLL_IMMUNITY_WINDOW_MS] has passed since
+ *      `reelOpenTimeMs`, this is almost certainly Instagram's own internal
+ *      layout/scroll settling for the first video — ignore it completely.
+ *    - Otherwise, this can only be a real swipe (or auto-advance) to a
+ *      second video: fire `GLOBAL_ACTION_BACK` immediately.
+ * 3. **Leaving the Clips player** (`TYPE_WINDOW_STATE_CHANGED` detects a
+ *    screen that is neither the Clips player nor a Story): reset
+ *    `isInReelsPlayer = false` and `reelOpenTimeMs = 0`. The next Reel
+ *    opened gets its own fresh immunity window and its own free video.
+ * 4. **Stories are ignored outright** — detecting one returns immediately
+ *    without touching `isInReelsPlayer`/`reelOpenTimeMs` at all. This part
+ *    was never broken and is deliberately left as-is.
  *
  * Every step is wrapped in try/catch. A single malformed or stale node must
  * never be allowed to crash this service, because a crashed accessibility
@@ -37,33 +53,19 @@ import com.reelsblocker.app.util.NodeUtils
  */
 class ReelsBlockerAccessibilityService : AccessibilityService() {
 
-    /** SystemClock.elapsedRealtime() of the moment the DM/Profile bypass window was last armed. */
+    /** True from the moment the Clips player is detected until the user leaves it. */
     @Volatile
-    private var bypassArmedAt: Long = 0L
-
-    @Volatile
-    private var bypassSource: BypassSource = BypassSource.NONE
+    private var isInReelsPlayer: Boolean = false
 
     /**
-     * True once the *currently open* Clips player has been granted a
-     * viewing pass. Stays true for the lifetime of that single screen —
-     * i.e. until the user leaves the Clips player entirely — regardless of
-     * whether the original 3-second arming window has since expired. This
-     * is what stops a long Reel from being force-closed partway through
-     * just because it took the viewer more than 3 seconds to watch.
-     *
-     * Known, accepted trade-off: if Instagram's own player lets the user
-     * swipe from an allowed Reel straight into its "up next" suggestions
-     * without ever leaving the ClipsViewerFragment screen, those
-     * suggestions remain visible too, since from the accessibility tree's
-     * point of view it is still the same screen. Detecting a same-screen
-     * swipe to different underlying media is not reliably possible from
-     * view-id/class-name signals alone.
+     * [SystemClock.elapsedRealtime] timestamp of the moment the Clips
+     * player was entered. 0 whenever [isInReelsPlayer] is false. Used to
+     * compute the scroll-immunity grace period.
      */
     @Volatile
-    private var clipsSessionAllowed: Boolean = false
+    private var reelOpenTimeMs: Long = 0L
 
-    /** Debounces GLOBAL_ACTION_BACK so it is never spammed on rapid-fire content-changed events. */
+    /** Debounces GLOBAL_ACTION_BACK so a single swipe's burst of scroll events can't spam it. */
     @Volatile
     private var lastBackActionAt: Long = 0L
 
@@ -75,9 +77,10 @@ class ReelsBlockerAccessibilityService : AccessibilityService() {
             // here means the service degrades gracefully even on an OEM ROM
             // that mishandles the XML config for some reason.
             val info = serviceInfo ?: AccessibilityServiceInfo()
+            // Deliberately NOT requesting TYPE_WINDOW_CONTENT_CHANGED — see
+            // the class-level doc comment for why that was the actual bug.
             info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
-                AccessibilityEvent.TYPE_VIEW_CLICKED
+                AccessibilityEvent.TYPE_VIEW_SCROLLED
             info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             info.flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
             info.packageNames = arrayOf(Constants.INSTAGRAM_PACKAGE)
@@ -107,12 +110,11 @@ class ReelsBlockerAccessibilityService : AccessibilityService() {
             }
 
             when (event.eventType) {
-                AccessibilityEvent.TYPE_VIEW_CLICKED ->
-                    handleClick()
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ->
+                    classifyScreen()
 
-                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
-                    classifyAndAct()
+                AccessibilityEvent.TYPE_VIEW_SCROLLED ->
+                    handleScroll()
             }
         } catch (e: Exception) {
             // The single most important catch block in the whole service:
@@ -125,86 +127,72 @@ class ReelsBlockerAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * A tap happened somewhere in Instagram. If the user is currently
-     * inside a DM thread or a Profile grid, arm the bypass window — this is
-     * almost certainly a tap on a Reel thumbnail that is about to open the
-     * ClipsViewerFragment.
-     *
-     * This arms on *any* click while one of those containers is on screen,
-     * rather than trying to match the exact thumbnail element, because
-     * Instagram does not expose stable, documented view ids for individual
-     * media thumbnails. The screen-level container ids are far more
-     * reliable, and the short 3-second window keeps an unrelated tap (e.g.
-     * sending a text message in the same thread) from granting a
-     * meaningfully long-lived bypass: it only ever matters if a Clips
-     * player genuinely opens within the next 3 seconds.
+     * Run only on genuine screen/window transitions inside Instagram
+     * (`TYPE_WINDOW_STATE_CHANGED`) — never on content-changed ticks, which
+     * is exactly the distinction that was missing before v11.
      */
-    private fun handleClick() {
+    private fun classifyScreen() {
         val root = rootInActiveWindow ?: return
 
-        if (NodeUtils.findIdentifierInTree(root, Constants.DM_IDENTIFIERS)) {
-            armBypass(BypassSource.DIRECT_MESSAGE)
-        } else if (NodeUtils.findIdentifierInTree(root, Constants.PROFILE_IDENTIFIERS)) {
-            armBypass(BypassSource.PROFILE)
-        }
-    }
-
-    private fun armBypass(source: BypassSource) {
-        bypassArmedAt = SystemClock.elapsedRealtime()
-        bypassSource = source
-        Log.d(Constants.LOG_TAG, "BYPASS_WINDOW_ARMED source=$source")
-    }
-
-    private fun isBypassWindowActive(): Boolean {
-        if (bypassSource == BypassSource.NONE) return false
-        val elapsed = SystemClock.elapsedRealtime() - bypassArmedAt
-        return elapsed in 0..Constants.BYPASS_WINDOW_MS
-    }
-
-    /**
-     * The main classification pass, run on every window-state and
-     * window-content change inside Instagram.
-     */
-    private fun classifyAndAct() {
-        val root = rootInActiveWindow ?: return
-
-        // --- 1. Stories: absolute priority, never blocked, zero action. ---
+        // --- Stories: ignored outright. Never touch isInReelsPlayer. ---
         if (NodeUtils.findIdentifierInTree(root, Constants.STORY_IDENTIFIERS)) {
             Log.d(Constants.LOG_TAG, "STORY_BYPASS")
-            clipsSessionAllowed = false // left any Clips session we might have been in
             return
         }
 
         val isClipsScreen = NodeUtils.findIdentifierInTree(root, Constants.CLIPS_IDENTIFIERS)
 
-        if (!isClipsScreen) {
-            // Main feed, Explore grid, a DM thread list, a profile, the
-            // Clips player having just closed, etc. Whatever viewing
-            // session may have been granted is now over; it must be
-            // re-earned the next time a Clips player opens.
-            clipsSessionAllowed = false
-            return
-        }
-
-        if (clipsSessionAllowed) {
-            // Already granted for this viewing session. Nothing to do on
-            // every content-changed tick while the video simply plays.
-            return
-        }
-
-        if (isBypassWindowActive()) {
-            clipsSessionAllowed = true
-            when (bypassSource) {
-                BypassSource.DIRECT_MESSAGE -> Log.d(Constants.LOG_TAG, "DM_REEL_ALLOWED")
-                BypassSource.PROFILE -> Log.d(Constants.LOG_TAG, "PROFILE_REEL_ALLOWED")
-                BypassSource.NONE -> Unit // unreachable: isBypassWindowActive() already excludes this
+        if (isClipsScreen) {
+            if (!isInReelsPlayer) {
+                // Fresh entry into the Clips player: arm the state machine
+                // and stamp the immunity window. Do nothing else — the
+                // first video plays with zero interference.
+                isInReelsPlayer = true
+                reelOpenTimeMs = SystemClock.elapsedRealtime()
+                Log.d(Constants.LOG_TAG, "REEL_PLAYER_ENTERED")
             }
+            // Already inside the Clips player: a window-state-changed event
+            // firing again here (rare, but possible on some OEM skins) must
+            // NOT re-arm the timer or touch state — only a genuine first
+            // entry does that.
             return
         }
 
-        // Opened from the main Reels tab, the feed, or Explore, with no
-        // active DM/Profile bypass window: block it.
-        Log.d(Constants.LOG_TAG, "FEED_REEL_BLOCKED")
+        // Neither Stories nor the Clips player: the user has explicitly
+        // left the Reels experience (back to feed, a DM thread, a profile,
+        // Explore, wherever). Reset so the next Reel opened gets a fresh
+        // immunity window and its own free video.
+        if (isInReelsPlayer) {
+            Log.d(Constants.LOG_TAG, "REEL_PLAYER_EXITED")
+        }
+        isInReelsPlayer = false
+        reelOpenTimeMs = 0L
+    }
+
+    /**
+     * Fired on every `TYPE_VIEW_SCROLLED` event inside Instagram. Only
+     * matters while [isInReelsPlayer] is true; otherwise the scroll came
+     * from something else entirely (a list in the feed, Explore's grid)
+     * and is none of our concern.
+     */
+    private fun handleScroll() {
+        if (!isInReelsPlayer) {
+            return
+        }
+
+        val elapsedSinceOpen = SystemClock.elapsedRealtime() - reelOpenTimeMs
+        if (elapsedSinceOpen < Constants.SCROLL_IMMUNITY_WINDOW_MS) {
+            // Within the immunity window: this is Instagram's own internal
+            // scroll/layout settling for the first video, not the user
+            // swiping. Ignore it completely — let the first video load.
+            Log.d(Constants.LOG_TAG, "SCROLL_IGNORED_WITHIN_IMMUNITY_WINDOW")
+            return
+        }
+
+        // Outside the immunity window, still inside the Clips player: this
+        // can only be a real swipe (or Instagram auto-advancing) to a
+        // second video. Block it.
+        Log.d(Constants.LOG_TAG, "SECOND_REEL_SWIPE_BLOCKED")
         fireBack()
     }
 
