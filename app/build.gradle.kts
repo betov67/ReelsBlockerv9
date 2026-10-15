@@ -1,0 +1,71 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.reelsblocker.app"
+    compileSdk = 37
+
+    defaultConfig {
+        applicationId = "com.reelsblocker.app"
+        minSdk = 26
+        targetSdk = 37
+        versionCode = 9
+        versionName = "9.0"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        debug {
+            isMinifyEnabled = false
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig = false
+        viewBinding = false
+    }
+
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
+dependencies {
+    // Intentionally dependency-free. ReelsBlocker only needs the Android
+    // framework itself: AccessibilityService/AccessibilityNodeInfo, and the
+    // Notification/NotificationChannel APIs that have been part of the
+    // platform since API 26 (our minSdk). Keeping the dependency graph at
+    // zero third-party artifacts means there is nothing to version-skew
+    // against future Gradle/AGP/Kotlin releases, and the APK stays tiny.
+}
