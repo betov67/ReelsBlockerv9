@@ -2,23 +2,32 @@
 <!--
   Declarative configuration for ReelsBlockerAccessibilityService.
 
-  Scoped tightly to Instagram only (android:packageNames) and to the two
-  event types the service actually needs, so the system never even delivers
-  events for other apps or other interaction types to us.
+  Scoped tightly to Instagram only (android:packageNames) and to the event
+  types the service actually needs, so the system never even delivers events
+  for other apps or other interaction types to us.
 
-  typeWindowContentChanged is deliberately NOT requested. v9/v10 subscribed
-  to it for screen classification, but Instagram fires it constantly while
-  a Reel simply plays (caption text, like-count, progress bar), which was
-  misread as "the user left the Clips player" far more often than intended.
-  v11 classifies screens only on typeWindowStateChanged, which fires on
-  genuine screen/window transitions, not minor content ticks.
+  typeWindowContentChanged: v9/v10 used this broadly for screen
+  classification, which was a mistake — Instagram fires it constantly while
+  a Reel simply plays (caption text, like-count, progress bar), and that
+  noise was misread as "the user left the Clips player" far more often than
+  intended. v11 dropped it entirely and classified screens only on
+  typeWindowStateChanged.
+
+  v12 brings it back, but only for ReelsBlockerAccessibilityService#classifyMainReelsTab():
+  the dedicated bottom-nav Reels tab is an in-place Fragment swap inside
+  Instagram's one Activity, so typeWindowStateChanged never fires for it —
+  typeWindowContentChanged is the only event Android delivers for that kind
+  of change. The handler rate-limits its own tree walks and only ever
+  arms/resets a session it itself started, so it can't reintroduce the old
+  noise bug (see the class-level doc comment in that file for the full
+  reasoning).
 
   flagReportViewIds is required: without it, AccessibilityNodeInfo#getViewIdResourceName()
   returns null for every node, and every identifier match in
   com.reelsblocker.app.util.Constants depends on view ids being populated.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeViewScrolled"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagReportViewIds"
     android:canRetrieveWindowContent="true"

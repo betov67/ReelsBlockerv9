@@ -64,6 +64,45 @@ object Constants {
     )
 
     /**
+     * v12 addition: candidate identifiers for the dedicated bottom-nav
+     * Reels tab (the endless-scroll Reels home, as opposed to a Reel opened
+     * contextually from a DM or a profile).
+     *
+     * HONESTY NOTE: unlike [STORY_IDENTIFIERS] and [CLIPS_IDENTIFIERS] —
+     * which were effectively confirmed by v9-v11 actually blocking/allowing
+     * the right screens in practice — these are a best-effort guess. There
+     * is no public documentation of Instagram's internal view IDs for this
+     * specific tab, and this service has no way to inspect a real device to
+     * confirm them. If v12 still fails to catch the main Reels tab, the
+     * fastest path to a real fix is pulling one `adb shell uiautomator
+     * dump` (or an Accessibility Inspector dump) while that tab is open, so
+     * the actual IDs can replace these guesses.
+     */
+    val MAIN_REELS_TAB_IDENTIFIERS = arrayOf(
+        "reels_tab",
+        "clips_tab",
+        "reels_tab_fragment",
+        "clips_tab_fragment",
+        "tab_reels",
+        "reel_feed_recycler",
+        "clips_fragment_container"
+    )
+
+    /**
+     * Minimum gap, in milliseconds, between two full accessibility-tree
+     * walks triggered by `TYPE_WINDOW_CONTENT_CHANGED` (see
+     * `classifyMainReelsTab()`). That event type fires very frequently —
+     * it's exactly why v9/v10 got flaky when they used it to drive state
+     * resets. v12 reintroduces it only for *detecting the main Reels tab*
+     * (a Fragment swap inside the same window never fires
+     * `TYPE_WINDOW_STATE_CHANGED`, so that event alone can't see this tab),
+     * and bounds the cost/noise of doing so with this rate limit — a tree
+     * walk this path runs at most a few times a second, never on every
+     * single content tick.
+     */
+    const val MAIN_TAB_CONTENT_CHECK_INTERVAL_MS = 300L
+
+    /**
      * Upper bound on nodes visited per tree walk. Keeps every single call
      * fast and bounded even on Instagram's deepest view hierarchies, so a
      * pathological screen can never turn into jank or an ANR.
