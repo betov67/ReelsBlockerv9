@@ -34,10 +34,6 @@ Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradl
 > Task :app:generateDebugRFile
 > Task :app:checkDebugDuplicateClasses
 > Task :app:desugarDebugFileDependencies
-> Task :app:checkDebugAarMetadata
-> Task :app:mergeLibDexDebug
-> Task :app:mapDebugSourceSetPaths
-> Task :app:compileDebugNavigationResources
 
 > Task :app:compileDebugKotlin
 w: file:///home/runner/work/ReelsBlockerv9/ReelsBlockerv9/app/src/main/java/com/reelsblocker/app/service/MonitorForegroundService.kt:86:14 'fun setPriority(p0: Int): Notification.Builder!' is deprecated. Deprecated in Java.
@@ -45,27 +41,31 @@ w: file:///home/runner/work/ReelsBlockerv9/ReelsBlockerv9/app/src/main/java/com/
 
 > Task :app:compileDebugJavaWithJavac NO-SOURCE
 > Task :app:processDebugJavaRes
+> Task :app:checkDebugAarMetadata
+> Task :app:mergeLibDexDebug
+> Task :app:mapDebugSourceSetPaths
+> Task :app:mergeDebugJavaResource
+> Task :app:compileDebugNavigationResources
 > Task :app:createDebugCompatibleScreenManifests
-> Task :app:mergeDebugResources
 > Task :app:extractDeepLinksDebug
 > Task :app:mergeExtDexDebug
+> Task :app:mergeDebugResources
 > Task :app:processDebugMainManifest
-> Task :app:mergeDebugJavaResource
 > Task :app:processDebugManifest
 > Task :app:mergeDebugJniLibFolders
 > Task :app:mergeDebugNativeLibs NO-SOURCE
-> Task :app:stripDebugDebugSymbols NO-SOURCE
-> Task :app:validateSigningDebug
-> Task :app:writeDebugAppMetadata
-> Task :app:writeDebugSigningConfigVersions
 > Task :app:processDebugManifestForPackage
+> Task :app:stripDebugDebugSymbols NO-SOURCE
 > Task :app:processDebugResources
+> Task :app:validateSigningDebug
 > Task :app:dexBuilderDebug
+> Task :app:writeDebugAppMetadata
 > Task :app:mergeProjectDexDebug
+> Task :app:writeDebugSigningConfigVersions
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 1m 27s
+BUILD SUCCESSFUL in 1m 24s
 34 actionable tasks: 34 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.0/userguide/configuration_cache_enabling.html
