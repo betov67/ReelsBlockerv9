@@ -35,22 +35,22 @@ Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradl
 > Task :app:checkDebugDuplicateClasses
 > Task :app:desugarDebugFileDependencies
 > Task :app:checkDebugAarMetadata
-> Task :app:mapDebugSourceSetPaths
 > Task :app:mergeLibDexDebug
+> Task :app:mapDebugSourceSetPaths
+> Task :app:compileDebugNavigationResources
 
 > Task :app:compileDebugKotlin
 w: file:///home/runner/work/ReelsBlockerv9/ReelsBlockerv9/app/src/main/java/com/reelsblocker/app/service/MonitorForegroundService.kt:86:14 'fun setPriority(p0: Int): Notification.Builder!' is deprecated. Deprecated in Java.
 w: file:///home/runner/work/ReelsBlockerv9/ReelsBlockerv9/app/src/main/java/com/reelsblocker/app/service/MonitorForegroundService.kt:86:39 'static field PRIORITY_MIN: Int' is deprecated. Deprecated in Java.
 
 > Task :app:compileDebugJavaWithJavac NO-SOURCE
-> Task :app:compileDebugNavigationResources
 > Task :app:processDebugJavaRes
 > Task :app:createDebugCompatibleScreenManifests
+> Task :app:mergeDebugResources
 > Task :app:extractDeepLinksDebug
+> Task :app:mergeExtDexDebug
 > Task :app:processDebugMainManifest
 > Task :app:mergeDebugJavaResource
-> Task :app:mergeDebugResources
-> Task :app:mergeExtDexDebug
 > Task :app:processDebugManifest
 > Task :app:mergeDebugJniLibFolders
 > Task :app:mergeDebugNativeLibs NO-SOURCE
@@ -66,6 +66,6 @@ w: file:///home/runner/work/ReelsBlockerv9/ReelsBlockerv9/app/src/main/java/com/
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 1m 20s
+BUILD SUCCESSFUL in 1m 27s
 34 actionable tasks: 34 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.0/userguide/configuration_cache_enabling.html
