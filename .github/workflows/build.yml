@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,12 +35,12 @@ jobs:
         run: yes | sdkmanager --licenses
 
       - name: List available SDK platform/build-tools packages (diagnostic)
-        run: sdkmanager --list 2>&1 | grep -iE "platforms;android-3|build-tools;3" | tee sdk_list.log || true
+        run: sdkmanager --list 2>&1 | grep -iE "platforms;android-3|build-tools;3" | tee /tmp/sdk_list.log || true
 
       - name: Install required SDK platform & build-tools
         run: |
           set -o pipefail
-          sdkmanager "platforms;android-37" "build-tools;36.0.0" "platform-tools" 2>&1 | tee sdk_install.log
+          sdkmanager "platforms;android-37" "build-tools;36.0.0" "platform-tools" 2>&1 | tee /tmp/sdk_install.log
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
@@ -45,23 +48,39 @@ jobs:
       - name: Build debug APK
         run: |
           set -o pipefail
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle_build.log
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/gradle_build.log
 
-      - name: Upload APK artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ReelsBlocker-v9-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-
-      - name: Upload diagnostic logs (always)
+      # Actions artifact/log downloads route through Azure Blob Storage,
+      # which isn't reachable from the machine driving this workflow. So
+      # instead of actions/upload-artifact, publish everything (logs, and
+      # the APK if it built) straight into a plain git branch, which is
+      # fetched back over ordinary git — no blob storage involved.
+      - name: Publish logs (and APK, if built) to the ci-output branch
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: diagnostic-logs
-          path: |
-            sdk_list.log
-            sdk_install.log
-            gradle_build.log
-          if-no-files-found: ignore
+        run: |
+          set +e
+          mkdir -p /tmp/ci-output
+          cp /tmp/sdk_list.log /tmp/ci-output/ 2>/dev/null
+          cp /tmp/sdk_install.log /tmp/ci-output/ 2>/dev/null
+          cp /tmp/gradle_build.log /tmp/ci-output/ 2>/dev/null
+          cp app/build/outputs/apk/debug/*.apk /tmp/ci-output/ 2>/dev/null
+          echo "run_id=$GITHUB_RUN_ID run_number=$GITHUB_RUN_NUMBER sha=$GITHUB_SHA" > /tmp/ci-output/run_info.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin ci-output 2>/dev/null
+          if git show-ref --verify --quiet refs/remotes/origin/ci-output; then
+            git checkout -B ci-output origin/ci-output
+          else
+            git checkout --orphan ci-output
+            git rm -rf . > /dev/null 2>&1
+          fi
+
+          rm -rf ci-output
+          mkdir -p ci-output
+          cp /tmp/ci-output/* ci-output/ 2>/dev/null
+
+          git add ci-output
+          git commit -m "CI output for run ${GITHUB_RUN_ID}" || echo "Nothing new to commit"
+          git push origin ci-output --force
