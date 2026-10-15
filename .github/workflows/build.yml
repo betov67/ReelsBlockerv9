@@ -40,7 +40,7 @@ jobs:
       - name: Install required SDK platform & build-tools
         run: |
           set -o pipefail
-          sdkmanager "platforms;android-37" "build-tools;36.0.0" "platform-tools" 2>&1 | tee /tmp/sdk_install.log
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" 2>&1 | tee /tmp/sdk_install.log
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew

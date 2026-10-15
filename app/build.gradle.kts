@@ -7,12 +7,16 @@ plugins {
 
 android {
     namespace = "com.reelsblocker.app"
-    compileSdk = 37
+    // API 37 only ships as minor-versioned SDK packages right now
+    // (platforms;android-37.0/.1/.2, no plain "android-37"), which Gradle's
+    // integer compileSdk can't address. 36 is the latest plain, unambiguous
+    // platform package, and nothing in this app needs anything from 37.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.reelsblocker.app"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 36
         versionCode = 9
         versionName = "9.0"
     }
