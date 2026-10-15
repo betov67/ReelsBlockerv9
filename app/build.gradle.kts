@@ -2,7 +2,10 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    // No separate Kotlin plugin here: AGP 9.0+ bundles Kotlin support
+    // directly (see https://developer.android.com/build/migrate-to-built-in-kotlin).
+    // Applying org.jetbrains.kotlin.android on top of that is now a fatal
+    // "no longer required" build error, not just a deprecation warning.
 }
 
 android {
